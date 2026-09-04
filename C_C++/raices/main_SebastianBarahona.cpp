@@ -4,8 +4,9 @@
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_errno.h>
 
-double f(double x, void *params) {
-  return 0;
+// f(x) = x^3 - 5x + 1
+double f(double x, void *) {
+  return x*x*x - 5.0*x + 1.0;
 }
 
 int main() {
