@@ -52,6 +52,8 @@ prácticamente cero.
 
 ## 3. Resultados — raíz negativa (≈ −2.33)
 
+Métodos cerrados
+
 Intervalo [−3, −2] para los métodos cerrados.
 
 | Método         |          Raíz | Iteraciones |     f(raíz) |
@@ -59,3 +61,11 @@ Intervalo [−3, −2] para los métodos cerrados.
 | Bisección      | −2.3300587460 |          26 | −7.31×10⁻⁸  |
 | False Position | −2.3300587396 |           8 | −1.78×10⁻¹⁵ |
 | Brent          | −2.3300587396 |           6 |  7.11×10⁻¹⁵ |
+
+Métodos abiertos
+
+| Newton         | −2.3300587396 |           4 | −1.78×10⁻¹⁵ |
+| Secante        | −2.3300587396 |           5 | −1.27×10⁻¹² |
+| Steffenson     | −2.3300587396 |           5 | −1.78×10⁻¹⁵ |
+
+Los métodos abiertos parten de x₀ = −2.5.
