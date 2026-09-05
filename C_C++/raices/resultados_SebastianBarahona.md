@@ -166,3 +166,44 @@ La causa es su criterio de parada. `gsl_root_test_interval` mide el **ancho
 del intervalo**, no la cercanía real a la raíz: cuando el ancho baja de 10⁻⁸
 el método se detiene, pero el punto medio reportado puede estar hasta 10⁻⁸
 lejos de la raíz verdadera, y f amplifica ese error.
+
+
+---
+
+## 7. Sensibilidad al valor inicial
+
+Se repitieron los métodos abiertos variando x₀, incluyendo un punto muy
+cercano al crítico x = 1.2910, donde f'(x) = 0. Las filas están ordenadas por
+|f'(x₀)| creciente:
+
+| Método     |     x₀ |  f'(x₀) | Distancia a la raíz | Resultado                | Iteraciones |
+|:-----------|-------:|--------:|--------------------:|:-------------------------|------------:|
+| Newton     | 1.2909 |  ≈ 0.00 |                1.09 | −2.3301 (raíz **lejana**) |          25 |
+| Steffenson | 1.2909 |  ≈ 0.00 |                1.09 | −2.3301 (raíz **lejana**) |          25 |
+| Secante    | 1.2909 |  ≈ 0.00 |                1.09 | −5024.31 (**divergió**)   |   100 (tope) |
+| Newton     | 1.0000 |   −2.00 |                0.80 | 0.2016 (raíz cercana)     |           6 |
+| Newton     | 0.5000 |   −4.25 |                0.30 | 0.2016 (raíz cercana)     |           4 |
+| Newton     |     10 |    +295 |                7.87 | 2.1284                    |           9 |
+| Secante    |     10 |    +295 |                7.87 | 2.1284                    |          12 |
+
+### Interpretación
+
+El resultado clave es que **la distancia a la raíz no predice el fracaso**.
+Desde x₀ = 10, a casi 8 unidades de cualquier raíz, Newton converge sin
+problema en 9 iteraciones. Desde x₀ = 1.2909, a poco más de una unidad de la
+raíz central, la secante diverge hasta −5024.
+
+Lo que gobierna el comportamiento es f'(x₀). La corrección de Newton
+
+$$x_{n+1} = x_n - \frac{f(x_n)}{f'(x_n)}$$
+
+divide por la derivada: cuando f'(x₀) → 0 el paso se dispara y la iteración
+salta a una región arbitraria de la función. Las tres primeras filas de la
+tabla lo muestran en orden — con |f'(x₀)| de 4.25 a 2.00 el costo sube de 4 a
+6 iteraciones, y al llegar a ≈ 0 el método pierde la raíz de vista por
+completo.
+
+Los métodos cerrados son indiferentes a esto: entregan siempre la raíz
+contenida en el intervalo, sin importar la geometría local.
+
+
