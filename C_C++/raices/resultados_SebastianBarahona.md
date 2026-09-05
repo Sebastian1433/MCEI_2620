@@ -207,3 +207,57 @@ Los métodos cerrados son indiferentes a esto: entregan siempre la raíz
 contenida en el intervalo, sin importar la geometría local.
 
 
+---
+
+## 8. Más allá — f(x) = e⁻ˣ − x
+
+Función monótona decreciente con una única raíz real ≈ 0.5671 (la constante
+omega). Intervalo [0, 1], x₀ = 0.5.
+
+| Método         |         Raíz | Iteraciones |     f(raíz) |
+|:---------------|-------------:|------------:|------------:|
+| Bisección      | 0.5671432894 |          28 |  1.63×10⁻⁹  |
+| False Position | 0.5671432904 |           7 |        0.00 |
+| Brent          | 0.5671432904 |           6 |        0.00 |
+| Newton         | 0.5671432904 |           4 | −1.11×10⁻¹⁶ |
+| Secante        | 0.5671432904 |           4 |  4.44×10⁻¹⁵ |
+| Steffenson     | 0.5671432904 |           4 | −1.11×10⁻¹⁶ |
+
+### 8.1 Comparación directa de iteraciones
+
+| Método         | x³ − 5x + 1 (central) | e⁻ˣ − x | Diferencia |
+|:---------------|----------------------:|--------:|-----------:|
+| Bisección      |                    29 |      28 |         −1 |
+| False Position |                     8 |       7 |         −1 |
+| Brent          |                     6 |       6 |          0 |
+| Newton         |                     4 |       4 |          0 |
+| Secante        |                     5 |       4 |         −1 |
+| Steffenson     |                     5 |       4 |         −1 |
+
+### 8.2 Análisis
+
+| Criterio                | Cúbica                              | Exponencial                        |
+|:------------------------|:------------------------------------|:-----------------------------------|
+| Iteraciones             | 4 – 29, dispersión alta             | 4 – 28, menos dispersión           |
+| Sensibilidad a x₀       | Alta: puede dar una raíz distinta   | Baja: raíz única, sin ambigüedad   |
+| Robustez                | f'(x) = 0 en x = ±1.291             | f'(x) ≤ −1 siempre, nunca se anula |
+| Precisión final         | ~10⁻¹⁵ (salvo bisección)            | ~10⁻¹⁵ (salvo bisección)           |
+
+**Número de iteraciones.** Menos dispersión: los tres métodos abiertos empatan
+en 4 y False Position baja a 7, sin la degradación que mostró en la cúbica. Al
+no haber puntos de inflexión problemáticos dentro del intervalo, la
+interpolación lineal es buena aproximación desde el primer paso.
+
+**Sensibilidad al valor inicial.** Mucho menor. Al ser monótona y con una sola
+raíz, no hay ambigüedad sobre cuál raíz se obtiene: cualquier x₀ razonable
+converge al mismo punto.
+
+**Robustez.** Mayor. La derivada f'(x) = −e⁻ˣ − 1 cumple f'(x) ≤ −1 para todo
+x, así que nunca se anula. Newton no puede dividir por un valor cercano a
+cero, que es exactamente el modo de falla observado en la cúbica.
+
+**Precisión final.** Equivalente en ambas funciones. La precisión la fija la
+tolerancia y el criterio de parada, no el método ni la función.
+
+
+
