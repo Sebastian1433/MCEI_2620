@@ -11,6 +11,7 @@
 #include <string>
 #include <gsl/gsl_roots.h>
 #include <gsl/gsl_errno.h>
+#include <cstdlib>
 
 // f(x) = x^3 - 5x + 1
 double f(double x, void *) {
@@ -48,8 +49,8 @@ int main(int argc, char *argv[]) {
     F.function = &f;
     F.params   = nullptr;
 
-    double x_lo = 0.0;
-    double x_hi = 1.0;
+    double x_lo = (argc > 2) ? std::atof(argv[2]) : 0.0;
+    double x_hi = (argc > 3) ? std::atof(argv[3]) : 1.0;
 
     gsl_root_fsolver *s = gsl_root_fsolver_alloc(T);
     gsl_root_fsolver_set(s, &F, x_lo, x_hi);
@@ -84,7 +85,7 @@ int main(int argc, char *argv[]) {
     FDF.fdf    = &fdf;
     FDF.params = nullptr;
 
-    double x0 = 0.5;
+    double x0 = (argc > 2) ? std::atof(argv[2]) : 0.5;
 
     gsl_root_fdfsolver *s = gsl_root_fdfsolver_alloc(T);
     gsl_root_fdfsolver_set(s, &FDF, x0);
