@@ -85,3 +85,22 @@ Intervalo [0, 1] para los cerrados, x₀ = 0.5 para los abiertos.
 | Newton         | 0.2016396757 |           4 |  1.11×10⁻¹⁶ |
 | Secante        | 0.2016396757 |           5 | −2.00×10⁻¹⁵ |
 | Steffenson     | 0.2016396757 |           5 |  1.11×10⁻¹⁶ |
+
+
+---
+
+## 5. Resultados — raíz positiva (≈ 2.13)
+
+Intervalo [2, 3] para los cerrados, x₀ = 2.5 para los abiertos.
+
+| Método         |         Raíz | Iteraciones |     f(raíz) |
+|:---------------|-------------:|------------:|------------:|
+| Bisección      | 2.1284190640 |          26 |  1.21×10⁻⁹  |
+| False Position | 2.1284190638 |      **25** | −1.78×10⁻¹⁵ |
+| Brent          | 2.1284190638 |           6 | −1.78×10⁻¹⁵ |
+| Newton         | 2.1284190638 |           5 | −1.78×10⁻¹⁵ |
+| Secante        | 2.1284190638 |           6 |  3.16×10⁻¹³ |
+| Steffenson     | 2.1284190638 |           6 | −1.78×10⁻¹⁵ |
+
+False Position necesitó 25 iteraciones aquí, contra 8 en las dos raíces
+anteriores. Se analiza en la sección 6.
