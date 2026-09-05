@@ -69,3 +69,19 @@ Métodos abiertos
 | Steffenson     | −2.3300587396 |           5 | −1.78×10⁻¹⁵ |
 
 Los métodos abiertos parten de x₀ = −2.5.
+
+
+---
+
+## 4. Resultados — raíz central (≈ 0.20)
+
+Intervalo [0, 1] para los cerrados, x₀ = 0.5 para los abiertos.
+
+| Método         |         Raíz | Iteraciones |     f(raíz) |
+|:---------------|-------------:|------------:|------------:|
+| Bisección      | 0.2016396755 |          29 |  9.18×10⁻¹⁰ |
+| False Position | 0.2016396757 |           8 |  1.11×10⁻¹⁶ |
+| Brent          | 0.2016396757 |           6 |  1.11×10⁻¹⁶ |
+| Newton         | 0.2016396757 |           4 |  1.11×10⁻¹⁶ |
+| Secante        | 0.2016396757 |           5 | −2.00×10⁻¹⁵ |
+| Steffenson     | 0.2016396757 |           5 |  1.11×10⁻¹⁶ |
