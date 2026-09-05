@@ -104,3 +104,65 @@ Intervalo [2, 3] para los cerrados, x₀ = 2.5 para los abiertos.
 
 False Position necesitó 25 iteraciones aquí, contra 8 en las dos raíces
 anteriores. Se analiza en la sección 6.
+
+
+---
+
+## 6. Resumen comparativo
+
+### 6.1 Raíces obtenidas
+
+| Raíz     | Intervalo | x₀ métodos abiertos |         Valor |
+|:---------|:---------:|:-------------------:|--------------:|
+| Negativa | [−3, −2]  |                −2.5 | −2.3300587396 |
+| Central  | [ 0,  1]  |                 0.5 |  0.2016396757 |
+| Positiva | [ 2,  3]  |                 2.5 |  2.1284190638 |
+
+Los seis métodos coinciden en las tres raíces hasta el décimo decimal,
+salvo la bisección (ver 6.3).
+
+### 6.2 Iteraciones por método y por raíz
+
+| Método         | Familia | Negativa | Central | Positiva | Promedio |
+|:---------------|:-------:|---------:|--------:|---------:|---------:|
+| Bisección      | Cerrada |       26 |      29 |       26 |     27.0 |
+| False Position | Cerrada |        8 |       8 |       25 |     13.7 |
+| Brent          | Cerrada |        6 |       6 |        6 |  **6.0** |
+| Newton         | Abierta |        4 |       4 |        5 |  **4.3** |
+| Secante        | Abierta |        5 |       5 |        6 |      5.3 |
+| Steffenson     | Abierta |        5 |       5 |        6 |      5.3 |
+
+Newton es el más rápido en promedio; Brent es el más **estable**: idéntico
+conteo en las tres raíces, sin depender de la geometría del intervalo.
+
+### 6.3 Precisión: valor de f(raíz)
+
+| Método         |    Negativa |     Central |    Positiva | Orden típico |
+|:---------------|------------:|------------:|------------:|:------------:|
+| Bisección      | −7.31×10⁻⁸  |  9.18×10⁻¹⁰ |  1.21×10⁻⁹  |     10⁻⁹     |
+| False Position | −1.78×10⁻¹⁵ |  1.11×10⁻¹⁶ | −1.78×10⁻¹⁵ |     10⁻¹⁵    |
+| Brent          |  7.11×10⁻¹⁵ |  1.11×10⁻¹⁶ | −1.78×10⁻¹⁵ |     10⁻¹⁵    |
+| Newton         | −1.78×10⁻¹⁵ |  1.11×10⁻¹⁶ | −1.78×10⁻¹⁵ |     10⁻¹⁵    |
+| Secante        | −1.27×10⁻¹² | −2.00×10⁻¹⁵ |  3.16×10⁻¹³ |     10⁻¹³    |
+| Steffenson     | −1.78×10⁻¹⁵ |  1.11×10⁻¹⁶ | −1.78×10⁻¹⁵ |     10⁻¹⁵    |
+
+### 6.4 Degradación de False Position
+
+False Position pasa de 8 iteraciones en las dos primeras raíces a 25 en la
+tercera. Es su patología conocida: cuando la función es marcadamente convexa
+dentro del intervalo, uno de los extremos nunca se actualiza y la reducción
+ocurre por un solo lado, degradando el método hasta un desempeño comparable
+al de la bisección.
+
+Brent no lo sufre porque intercala pasos de bisección cuando detecta que la
+interpolación no progresa. Esa es la razón del 6.0 constante en la tabla 6.2.
+
+### 6.5 Precisión de la bisección
+
+La bisección es la única que arrastra error visible en f(raíz): del orden de
+10⁻⁹, frente a 10⁻¹⁵ del resto. Seis órdenes de magnitud.
+
+La causa es su criterio de parada. `gsl_root_test_interval` mide el **ancho
+del intervalo**, no la cercanía real a la raíz: cuando el ancho baja de 10⁻⁸
+el método se detiene, pero el punto medio reportado puede estar hasta 10⁻⁸
+lejos de la raíz verdadera, y f amplifica ese error.
