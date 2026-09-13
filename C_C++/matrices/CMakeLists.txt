@@ -1,5 +1,5 @@
-cmake_minimum_required( VERSION 3.20 )
+cmake_minimum_required(VERSION 3.20)
 project(matrices)
-find_package( Eigen3 )
-add_executable( ${PROJECT_NAME} main_jimmy_sebastian.cpp )
-
+find_package(Eigen3 REQUIRED)
+add_executable(matrices main_jimmy_sebastian.cpp)
+add_executable(punto2 punto2_sistema_10x10.cpp)
