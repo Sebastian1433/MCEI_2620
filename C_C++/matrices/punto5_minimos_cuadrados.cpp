@@ -109,7 +109,10 @@ int main()
 
     cout << endl;
     cout << "Resultados del ajuste:" << endl;
-
+    
+    cout << "\nVector residual r = y - X*beta:\n";
+    cout << residuos << endl;
+    
     cout << "Norma de residuos = "
          << norma_residuos << endl;
 
