@@ -29,11 +29,77 @@ MatrixXd pseudoInverse(const MatrixXd& A, double tol = 1e-10)
          * svd.matrixU().transpose();
 }
 
+
+// ======================================================
+// FUNCION PARA CREAR MATRIZ DE HILBERT
+// ======================================================
+
+MatrixXd crearHilbert(int n)
+{
+    MatrixXd H(n, n);
+
+    for (int i = 0; i < n; i++)
+    {
+        for (int j = 0; j < n; j++)
+        {
+            H(i, j) = 1.0 / (i + j + 1.0);
+        }
+    }
+
+    return H;
+}
+
+
+// ======================================================
+// PUNTO 1 - PSEUDOINVERSA DE MOORE-PENROSE
+// ======================================================
+
+void punto1MoorePenrose()
+{
+    cout << "========================================\n";
+    cout << "PUNTO 1 - PSEUDOINVERSA DE MOORE-PENROSE\n";
+    cout << "========================================\n\n";
+
+    MatrixXd A(4, 3);
+
+    A << 1,  0,  2,
+         2, -1,  5,
+         0,  1, -1,
+         1,  3, -1;
+
+    cout << "Matriz A:\n";
+    cout << A << "\n\n";
+
+    MatrixXd Ap = pseudoInverse(A);
+
+    cout << "Pseudoinversa A+:\n";
+    cout << Ap << "\n\n";
+
+    cout << "Propiedad 1: A*A+*A\n";
+    cout << A * Ap * A << "\n\n";
+
+    cout << "Propiedad 2: A+*A*A+\n";
+    cout << Ap * A * Ap << "\n\n";
+
+    cout << "Propiedad 3: (A*A+)^T\n";
+    cout << (A * Ap).transpose() << "\n\n";
+
+    cout << "A*A+:\n";
+    cout << A * Ap << "\n\n";
+
+    cout << "Propiedad 4: (A+*A)^T\n";
+    cout << (Ap * A).transpose() << "\n\n";
+
+    cout << "A+*A:\n";
+    cout << Ap * A << "\n\n";
+}
+
+
 // ======================================================
 // PUNTO 3 - CONDICIONAMIENTO NUMERICO
 // ======================================================
 
-void analizarCondicionamiento()
+void punto3Condicionamiento()
 {
     cout << "\n========================================\n";
     cout << "PUNTO 3 - CONDICIONAMIENTO NUMERICO\n";
@@ -41,21 +107,12 @@ void analizarCondicionamiento()
 
     const int n = 5;
 
-    MatrixXd H(n,n);
-
-    // Crear matriz de Hilbert 5x5
-    for (int i = 0; i < n; i++)
-    {
-        for (int j = 0; j < n; j++)
-        {
-            H(i,j) = 1.0 / (i + j + 1.0);
-        }
-    }
+    MatrixXd H = crearHilbert(n);
 
     cout << "Matriz de Hilbert H:\n";
     cout << H << "\n\n";
 
-    // Calcular numero de condicion mediante SVD
+    // Numero de condicion mediante SVD
     JacobiSVD<MatrixXd> svd(H);
 
     VectorXd valoresSingulares = svd.singularValues();
@@ -79,16 +136,15 @@ void analizarCondicionamiento()
     cout << "Vector b:\n";
     cout << b << "\n\n";
 
-    // Resolver sistema original
+    // Resolver sistema original usando QR
     VectorXd x =
         H.colPivHouseholderQr().solve(b);
 
     cout << "Solucion sistema original:\n";
     cout << x << "\n\n";
 
-    // Perturbacion pequena en b
+    // Perturbacion pequena
     VectorXd b_pert = b;
-
     b_pert(0) += 1e-5;
 
     cout << "Vector b perturbado:\n";
@@ -101,7 +157,7 @@ void analizarCondicionamiento()
     cout << "Solucion con perturbacion:\n";
     cout << x_pert << "\n\n";
 
-    // Calcular error relativo
+    // Error relativo
     double error_rel =
         (x_pert - x).norm() / x.norm();
 
@@ -109,55 +165,115 @@ void analizarCondicionamiento()
     cout << error_rel << "\n";
 }
 
+
+// ======================================================
+// PUNTO 4 - INVERSA DIRECTA, QR Y SVD
+// ======================================================
+
+void punto4Inversa()
+{
+    cout << "\n========================================\n";
+    cout << "PUNTO 4 - INVERSA DIRECTA, QR Y SVD\n";
+    cout << "========================================\n\n";
+
+    const int n = 5;
+
+    MatrixXd A = crearHilbert(n);
+    MatrixXd I = MatrixXd::Identity(n, n);
+
+    cout << "Matriz A (Hilbert 5x5):\n";
+    cout << A << "\n\n";
+
+    // --------------------------------------------------
+    // 1. Inversa directa
+    // --------------------------------------------------
+
+    MatrixXd Ainv_directa = A.inverse();
+
+    double error_directa =
+        (A * Ainv_directa - I).norm();
+
+    cout << "Inversa directa:\n";
+    cout << Ainv_directa << "\n\n";
+
+    cout << "Error inversa directa ||A*A^-1 - I||:\n";
+    cout << error_directa << "\n\n";
+
+
+    // --------------------------------------------------
+    // 2. Inversa usando QR
+    // Resolver A*X = I
+    // --------------------------------------------------
+
+    HouseholderQR<MatrixXd> qr(A);
+
+    MatrixXd Ainv_qr = qr.solve(I);
+
+    double error_qr =
+        (A * Ainv_qr - I).norm();
+
+    cout << "Inversa mediante QR:\n";
+    cout << Ainv_qr << "\n\n";
+
+    cout << "Error QR ||A*A^-1 - I||:\n";
+    cout << error_qr << "\n\n";
+
+
+    // --------------------------------------------------
+    // 3. Inversa usando SVD
+    // A^-1 = V * Sigma^-1 * U^T
+    // --------------------------------------------------
+
+    JacobiSVD<MatrixXd> svd(
+        A,
+        ComputeFullU | ComputeFullV
+    );
+
+    VectorXd singular = svd.singularValues();
+    VectorXd singular_inv = singular;
+
+    for (int i = 0; i < singular.size(); i++)
+    {
+        singular_inv(i) = 1.0 / singular(i);
+    }
+
+    MatrixXd Ainv_svd =
+        svd.matrixV()
+        * singular_inv.asDiagonal()
+        * svd.matrixU().transpose();
+
+    double error_svd =
+        (A * Ainv_svd - I).norm();
+
+    cout << "Inversa mediante SVD:\n";
+    cout << Ainv_svd << "\n\n";
+
+    cout << "Error SVD ||A*A^-1 - I||:\n";
+    cout << error_svd << "\n\n";
+
+
+    // --------------------------------------------------
+    // Comparacion final
+    // --------------------------------------------------
+
+    cout << "COMPARACION DE ERRORES\n";
+    cout << "Directa: " << error_directa << "\n";
+    cout << "QR:      " << error_qr << "\n";
+    cout << "SVD:     " << error_svd << "\n";
+}
+
+
 // ======================================================
 // PROGRAMA PRINCIPAL
 // ======================================================
 
 int main()
 {
-    cout << "========================================\n";
-    cout << "PUNTO 1 - PSEUDOINVERSA DE MOORE-PENROSE\n";
-    cout << "========================================\n\n";
+    punto1MoorePenrose();
 
-    MatrixXd A(4,3);
+    punto3Condicionamiento();
 
-    A << 1,  0,  2,
-         2, -1,  5,
-         0,  1, -1,
-         1,  3, -1;
-
-    cout << "Matriz A:\n";
-    cout << A << "\n\n";
-
-    MatrixXd Ap = pseudoInverse(A);
-
-    cout << "Pseudoinversa A+:\n";
-    cout << Ap << "\n\n";
-
-    // Propiedad 1
-    cout << "Propiedad 1: A*A+*A\n";
-    cout << A * Ap * A << "\n\n";
-
-    // Propiedad 2
-    cout << "Propiedad 2: A+*A*A+\n";
-    cout << Ap * A * Ap << "\n\n";
-
-    // Propiedad 3
-    cout << "Propiedad 3: (A*A+)^T\n";
-    cout << (A * Ap).transpose() << "\n\n";
-
-    cout << "A*A+:\n";
-    cout << A * Ap << "\n\n";
-
-    // Propiedad 4
-    cout << "Propiedad 4: (A+*A)^T\n";
-    cout << (Ap * A).transpose() << "\n\n";
-
-    cout << "A+*A:\n";
-    cout << Ap * A << "\n\n";
-
-    // Ejecutar analisis de condicionamiento
-    analizarCondicionamiento();
+    punto4Inversa();
 
     return 0;
 }
