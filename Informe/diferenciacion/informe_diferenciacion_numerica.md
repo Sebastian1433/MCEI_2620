@@ -233,3 +233,113 @@ Octave y C++ coinciden **bit a bit**, porque implementan exactamente las mismas 
 La discrepancia no mide calidad de implementación sino una decisión de diseño distinta en `np.gradient`.
 
 ---
+
+## 6. Análisis
+
+### 6.1 ¿Qué ocurre con el error en los extremos del arreglo?
+
+En los extremos no se puede aplicar la diferencia centrada porque falta un vecino: en $i=0$ no existe $f_{-1}$ y en $i=n-1$ no existe $f_n$. Hay que usar una fórmula unilateral, y ahí se decide el orden del error.
+
+La de dos puntos, $(f_1-f_0)/h$, es $O(h)$. La de tres puntos, $(-3f_0+4f_1-f_2)/(2h)$, recupera $O(h^2)$. En Octave y C++ se usó la de tres puntos; `np.gradient` en Python usa la de dos por defecto, y de ahí viene toda la discrepancia de la sección 5.1.
+
+**El error del borde se propaga hacia adentro al derivar dos veces.** $\omega$ no se calcula de los datos crudos sino de $\theta$, que ya trae el error de borde en su primer punto. Al volver a derivar, ese punto contaminado entra en la fórmula de $i=1$:
+
+| Índice | Error en $\omega$ |
+|---:|---:|
+| 0 | 1.357×10⁻¹ |
+| 1 | 5.905×10⁻² |
+| 2 | 8.354×10⁻⁴ |
+| 3 | 7.829×10⁻⁴ |
+
+El punto $i=1$ es interior y aun así su error es **70 veces** mayor que el de $i=2$. A partir de $i=2$ la curva se estabiliza: 8.354×10⁻⁴ y 7.829×10⁻⁴ son prácticamente el mismo valor. El deterioro está confinado a los dos primeros puntos, no se diluye gradualmente.
+
+Restringido a $i = 2 \dots n-3$, el error de $\omega$ baja a 8.354×10⁻⁴, dos órdenes de magnitud por debajo del borde. Para el robot esto significa que $\omega$ al arrancar y al terminar la trayectoria no es confiable, que es justo donde el control necesitaría más cuidado.
+
+### 6.2 ¿Cómo afecta el ruido en los datos a la derivada numérica?
+
+Se agregó ruido gaussiano de desviación $\sigma$ a las posiciones, con $h = 0.2$ s fijo:
+
+| $\sigma$ [m] | Error en $v$ | Error en $\omega$ |
+|---:|---:|---:|
+| 0 | 2.344×10⁻⁴ | 5.905×10⁻² |
+| 10⁻⁴ | 9.818×10⁻⁴ | 5.914×10⁻² |
+| 10⁻³ | 8.598×10⁻³ | 7.097×10⁻² |
+| 10⁻² | 8.795×10⁻² | 5.263×10⁻¹ |
+
+**La velocidad lineal responde proporcionalmente al ruido.** Cada vez que $\sigma$ se multiplica por 10, el error de $v$ también: 9.8×10⁻⁴ → 8.6×10⁻³ → 8.8×10⁻². Esto se sigue directamente de la fórmula. La diferencia centrada es
+
+$$\frac{f_{i+1}-f_{i-1}}{2h}$$
+
+y si cada $f$ trae un error del orden de $\sigma$, el numerador acumula $\sqrt{2}\,\sigma$ y se divide por $2h$. El error queda del orden de $\sigma/(\sqrt{2}\,h)$: **lineal en $\sigma$, amplificado por $1/h$**.
+
+**La velocidad angular se comporta distinto, y es el hallazgo interesante.** Entre $\sigma = 0$ y $\sigma = 10^{-3}$ apenas cambia: 5.905×10⁻² contra 7.097×10⁻². Eso ocurre porque $\omega$ ya arrastra un error que no viene del ruido sino del borde (sección 6.1). Ese valor actúa como un **piso de truncamiento**, y mientras el ruido aporte menos que eso, no se nota. (El piso de 5.905×10⁻² corresponde al punto $i=1$: el estudio de ruido excluye los dos extremos, donde el error de borde es aún mayor.)
+
+El aporte del ruido a $\omega$ es del orden de $\sigma/h^2$, porque se deriva dos veces. Con $h = 0.2$ eso da $25\sigma$:
+
+- $\sigma = 10^{-3} \Rightarrow 2.5\times10^{-2}$, todavía por debajo del piso de 5.9×10⁻². El ruido queda escondido.
+- $\sigma = 10^{-2} \Rightarrow 2.5\times10^{-1}$, ya por encima. Y en efecto el error observado salta a 5.26×10⁻¹.
+
+Hay entonces un umbral: por debajo de $\sigma \approx 10^{-3}$ el error de $\omega$ lo manda la fórmula de borde, y por encima lo manda el sensor. Mejorar el sensor por debajo de ese umbral no sirve de nada si no se arregla primero el tratamiento de los extremos.
+
+La columna de cocientes de la salida lo resume: $\omega$ es 252 veces peor que $v$ sin ruido, y solo 6 veces peor con $\sigma = 10^{-2}$. No es que $\omega$ mejore, es que $v$ se degrada más rápido cuando el ruido domina.
+
+### 6.3 ¿Qué implicaciones tiene sobre la precisión reducir $h$?
+
+Aquí está el resultado que más contradice la intuición.
+
+**Con datos limpios, refinar sí mejora:**
+
+| $h$ | Error en $\dot x$ | Razón |
+|---:|---:|---:|
+| 0.400 | 9.672×10⁻⁴ | — |
+| 0.200 | 2.429×10⁻⁴ | 3.98 |
+| 0.100 | 6.074×10⁻⁵ | 4.00 |
+| 0.050 | 1.519×10⁻⁵ | 4.00 |
+| 0.025 | 3.797×10⁻⁶ | 4.00 |
+
+Cada vez que $h$ se parte a la mitad, el error se divide por 4. Eso es exactamente $O(h^2)$, y en escala log-log la pendiente da 2.
+
+**Con ruido fijo de $10^{-3}$ m pasa lo contrario:**
+
+| $h$ | Error en $v$ | Error en $\omega$ |
+|---:|---:|---:|
+| 0.400 | 4.182×10⁻³ | 5.525×10⁻² |
+| 0.200 | 8.886×10⁻³ | 7.183×10⁻² |
+| 0.100 | 1.945×10⁻² | 2.387×10⁻¹ |
+| 0.050 | 4.160×10⁻² | 1.008×10⁰ |
+| 0.025 | 8.900×10⁻² | 4.424×10⁰ |
+
+El error **crece** al refinar. En $\omega$ pasa de 5.5×10⁻² a 4.42: un deterioro de **80 veces** por haber muestreado mejor.
+
+Las razones de crecimiento confirman el análisis de 6.2. En $v$ el error se duplica al partir $h$ por la mitad, que es $\sigma/h$. En $\omega$ se cuadruplica en el tramo fino (2.387×10⁻¹ → 1.008 → 4.424, razones de 4.2 y 4.4), que es $\sigma/h^2$.
+
+El error total tiene dos partes que se oponen:
+
+$$E(h) \approx \underbrace{C h^2}_{\text{truncamiento}} + \underbrace{\frac{\sigma}{h}}_{\text{ruido}}$$
+
+El primero baja al reducir $h$ y el segundo sube. Existe un $h$ óptimo donde la suma es mínima, y pasado ese punto refinar empeora las cosas. Con $\sigma = 10^{-3}$ el óptimo ya quedó por encima de 0.4 s, así que todos los pasos probados están del lado malo de la curva.
+
+La conclusión práctica es que **el paso de muestreo debe escogerse según el ruido del sensor**, no según lo rápido que pueda muestrear el hardware. Un encoder más rápido no arregla nada si se le pide una resolución temporal que su ruido no soporta.
+
+### 6.4 ¿Qué diferencias se observan entre los tres entornos?
+
+**En los números.** Octave y C++ dan resultados idénticos a cero absoluto, en todas las columnas. Python difiere, pero únicamente en los dos puntos extremos; restringido al interior coincide también exactamente. La diferencia no viene del lenguaje ni de la aritmética de punto flotante, sino de que `np.gradient` eligió fórmulas unilaterales de dos puntos.
+
+**En el esfuerzo de programación.** Octave y Python resuelven el problema en una docena de líneas. En C++ la lectura del CSV sola toma unas veinte, y el desenvolvimiento angular hay que escribirlo a mano. A cambio, cada operación queda explícita: no hay nada que la librería decida por uno, que es exactamente lo que generó la discrepancia en Python.
+
+**En velocidad.** C++ corre en 0.003 s contra 1.28 s de Python. La comparación no es del todo justa porque los tiempos de los intérpretes incluyen el arranque y las gráficas, pero la ventaja se mantiene en cualquier medición. Para 51 muestras da igual; para un lazo de control en tiempo real no.
+
+**Lo que se aprende de tener los tres.** Si solo se hubiera hecho la versión de Python, el error de borde habría pasado desapercibido, porque no hay con qué compararlo. La coincidencia bit a bit entre Octave y C++ es lo que permite afirmar que la diferencia de Python es una decisión de diseño de `np.gradient` y no un error de implementación.
+
+### 6.5 Verificación del desenvolvimiento angular
+
+Para comprobar que el `unwrap` hace falta de verdad, se corrió un caso de prueba con $\omega$ real constante de 1 rad/s a lo largo de un giro completo:
+
+| | $\omega$ máximo calculado |
+|:---|---:|
+| Sin `unwrap` | 18.67 rad/s |
+| Con `unwrap` | 1.00 rad/s |
+
+`atan2` devuelve el ángulo restringido a $(-\pi, \pi]$, así que al cruzar esa frontera la señal salta $2\pi$ de golpe. Derivar ese salto produce un pico espurio: 18.67 rad/s donde el valor real es 1. El `unwrap` acumula múltiplos de $2\pi$ para volver la señal continua antes de derivarla, y con eso el resultado da exacto.
+
+---
