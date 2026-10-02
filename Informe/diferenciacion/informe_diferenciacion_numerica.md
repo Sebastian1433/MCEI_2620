@@ -130,3 +130,106 @@ Casi cien veces mejor con el mismo número de datos y el mismo costo computacion
 Al dividir $h$ entre dos el error se divide entre cuatro. La razón converge a 4.00 con tres cifras, que es la confirmación numérica del orden cuadrático.
 
 ---
+
+### 3.4 Gráficas
+
+![Trayectoria del robot en el plano. El punto de inicio está en el origen.](../../Python/figuras/python_trayectoria.png){width=72%}
+
+![Velocidad lineal. Las curvas numérica y analítica se superponen en toda la trayectoria.](../../Python/figuras/python_velocidad.png){width=92%}
+
+![Velocidad angular. La curva numérica se despega de la analítica únicamente en los dos extremos, donde las fórmulas unilaterales de `np.gradient` son de orden $O(h)$.](../../Python/figuras/python_omega.png){width=92%}
+
+![Convergencia de la diferencia centrada. Con datos limpios la pendiente es 2 en escala log-log, confirmando $O(h^2)$; con ruido de 10⁻³ m el error crece al refinar $h$.](../../Python/figuras/python_convergencia.png){width=92%}
+
+\clearpage
+
+## 4. Implementaciones
+
+### 4.1 Parte 1 — GNU Octave
+
+Carga con `csvread`, diferencias centradas vectorizadas sobre el interior y fórmulas de tres puntos en los extremos:
+
+```octave
+d(2:n-1) = (f(3:n) - f(1:n-2)) / (2*h);         % interior, vectorizado
+d(1)     = (-3*f(1) + 4*f(2) - f(3)) / (2*h);   % adelante, 3 puntos
+d(n)     = ( 3*f(n) - 4*f(n-1) + f(n-2)) / (2*h);
+```
+
+El desenvolvimiento angular usa la función `unwrap` incorporada. Se generan las cuatro gráficas pedidas: $y$ vs $x$, $v$ vs $t$, $\theta$ vs $t$ y $\omega$ vs $t$.
+
+### 4.2 Parte 2 — Python con NumPy
+
+```python
+vx = np.gradient(x, t)
+vy = np.gradient(y, t)
+v  = np.sqrt(vx**2 + vy**2)
+theta = np.unwrap(np.arctan2(vy, vx))
+omega = np.gradient(theta, t)
+```
+
+**Qué operación reemplaza las diferencias explícitas.** `np.gradient` sustituye por completo el bucle: aplica diferencias centradas en el interior en una sola llamada vectorizada, y acepta el vector de tiempos como segundo argumento, de modo que funciona también con muestreo no uniforme.
+
+**Cómo trata los extremos.** Aquí está la diferencia importante con las otras dos implementaciones: `np.gradient` usa fórmulas unilaterales **de dos puntos**, de orden $O(h)$. Por eso sus valores en $i=0$ e $i=n-1$ son menos exactos. Se puede pedir el comportamiento de segundo orden con `edge_order=2`.
+
+### 4.3 Parte 3 — C/C++ con GSL
+
+Lectura manual del CSV, diferencias centradas sobre los arreglos, y desenvolvimiento angular implementado explícitamente acumulando múltiplos de $2\pi$:
+
+```cpp
+for (size_t i = 1; i < th.size(); ++i) {
+    double d = th[i] - th[i-1];
+    if (d >  M_PI) correccion -= 2.0*M_PI;
+    if (d < -M_PI) correccion += 2.0*M_PI;
+    u[i] = th[i] + correccion;
+}
+```
+
+**Exploración de `gsl_deriv_central`.** La rutina se aplicó a $x(t)$ como función evaluable, para contrastarla con la diferencia sobre datos tabulados:
+
+| $t$ [s] | `gsl_deriv_central` | Error GSL | Error tabulado |
+|---:|---:|---:|---:|
+| 2.0 | 4.318898×10⁻¹ | 7.135×10⁻¹² | 1.510×10⁻⁴ |
+| 4.0 | 5.991036×10⁻¹ | 3.015×10⁻¹¹ | 5.519×10⁻⁵ |
+| 6.0 | 7.972670×10⁻¹ | 4.432×10⁻¹¹ | 2.196×10⁻⁴ |
+| 8.0 | 1.118583×10⁰ | 2.184×10⁻¹¹ | 2.178×10⁻⁴ |
+
+**Por qué los datos tabulados exigen otra estrategia.** Siete órdenes de magnitud separan los dos errores, y la causa no es que un algoritmo sea mejor que el otro: es que resuelven problemas distintos.
+
+`gsl_deriv_central` recibe un puntero a función, así que puede **evaluar $f$ en cualquier punto**. Eso le permite escoger su propio paso, refinarlo, usar extrapolación de Richardson y hasta devolver una estimación del error.
+
+Con 51 muestras fijas no existe $f(t)$ fuera de la malla. El paso lo impone el muestreo y no se puede reducir: la única información disponible son esos 51 pares. Por eso las diferencias se aplican directamente sobre los arreglos, y GSL queda disponible para otras operaciones numéricas del programa.
+
+Es la distinción didáctica central del taller: **diferenciar una función no es lo mismo que diferenciar una colección de datos muestreados**.
+
+---
+
+## 5. Comparación de resultados
+
+| Criterio | Octave | Python | C/C++ + GSL |
+|:---|:---|:---|:---|
+| Carga de datos | `csvread`, una línea | `np.loadtxt`, una línea | ~20 líneas con `ifstream` y `stringstream` |
+| Cálculo de $\dot x,\dot y$ | Rebanadas vectorizadas | `np.gradient(x, t)` | Bucle explícito sobre el arreglo |
+| Cálculo de $v$ | `sqrt(xdot.^2+ydot.^2)` | `np.hypot(vx, vy)` | Bucle con `std::sqrt` |
+| Cálculo de $\theta$ | `unwrap(atan2(...))` | `np.unwrap(np.arctan2(...))` | `std::atan2` + unwrap propio |
+| Cálculo de $\omega$ | Misma función de derivada | `np.gradient(theta, t)` | Misma función de derivada |
+| Manejo de arreglos | Nativo, indexado desde 1 | Nativo, vistas sin copia | `std::vector`, gestión manual |
+| Facilidad de implementación | Alta | Alta | Baja: I/O y unwrap a mano |
+| Control sobre el algoritmo | Medio | Bajo con `gradient`; alto si se escribe a mano | Total: cada operación es explícita |
+| Tiempo de ejecución | 1.47 s | 1.28 s | **0.003 s** |
+
+Sobre la última fila: los tiempos de Octave y Python corresponden al programa completo, que incluye el arranque del intérprete, la generación de gráficas y un estudio de ruido por Monte Carlo. El núcleo de cálculo en Python son 97 µs. La comparación justa no es 1.28 s contra 0.003 s, pero el orden de magnitud a favor de C++ se mantiene en cualquier medición.
+
+### 5.1 Coincidencia entre entornos
+
+| Columna | Octave vs C++ | Octave vs Python | Python vs C++ |
+|:---|---:|---:|---:|
+| $\dot x$ | **0.00** | 2.37×10⁻² | 2.37×10⁻² |
+| $v$ | **0.00** | 2.27×10⁻² | 2.27×10⁻² |
+| $\theta$ | **0.00** | 2.27×10⁻² | 2.27×10⁻² |
+| $\omega$ | **0.00** | 1.25×10⁻¹ | 1.25×10⁻¹ |
+
+Octave y C++ coinciden **bit a bit**, porque implementan exactamente las mismas fórmulas, incluidas las de los extremos. Python difiere, pero solo en los bordes: restringido al interior, $v$ coincide también con cero absoluto en los tres entornos.
+
+La discrepancia no mide calidad de implementación sino una decisión de diseño distinta en `np.gradient`.
+
+---
