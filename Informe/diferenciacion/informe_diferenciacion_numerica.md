@@ -343,3 +343,102 @@ Para comprobar que el `unwrap` hace falta de verdad, se corrió un caso de prueb
 `atan2` devuelve el ángulo restringido a $(-\pi, \pi]$, así que al cruzar esa frontera la señal salta $2\pi$ de golpe. Derivar ese salto produce un pico espurio: 18.67 rad/s donde el valor real es 1. El `unwrap` acumula múltiplos de $2\pi$ para volver la señal continua antes de derivarla, y con eso el resultado da exacto.
 
 ---
+
+## 7. Conclusiones
+
+**Sobre el método.** La diferencia centrada resultó cerca de cien veces más exacta que la unilateral con el mismo costo computacional (2.429×10⁻⁴ contra 2.380×10⁻²), y su orden $O(h^2)$ se verificó midiendo la razón de convergencia: 4.00 con tres cifras al partir $h$ por la mitad.
+
+Pero el tratamiento de los extremos importa tanto como el del interior cuando hay diferenciaciones encadenadas. Usar fórmulas de tres puntos en lugar de dos redujo el error de borde en $\dot x$ de 2.37×10⁻² a un valor dos órdenes de magnitud menor, sin ningún costo adicional. Y como el error de borde se propaga un punto hacia adentro en cada diferenciación, en $\omega$ la diferencia se nota todavía más.
+
+La lección que no estaba en el enunciado: **con datos ruidosos, refinar $h$ empeora el resultado**. El ruido se amplifica como $\sigma/h$ en la primera derivada y como $\sigma/h^2$ en la segunda, mientras el truncamiento solo decrece como $h^2$. Pasar de $h = 0.4$ a $h = 0.025$ con ruido de un milímetro degradó $\omega$ 80 veces.
+
+**Sobre el entorno computacional.** Los tres producen resultados idénticos cuando implementan las mismas fórmulas: Octave y C++ coinciden bit a bit, con diferencia exactamente cero. Las discrepancias observadas no son de precisión del lenguaje sino de decisiones de diseño — `np.gradient` eligió fórmulas de dos puntos en los bordes, y esa sola elección explica toda la diferencia con Python.
+
+Lo que separa a los entornos es el tiempo de desarrollo frente al control sobre el algoritmo. Una línea de NumPy reemplaza veinte de C++, pero esas veinte líneas son las que permiten decidir qué pasa exactamente en el primer y el último punto. Haber hecho las tres versiones fue lo que permitió detectar el problema: con una sola no hay contra qué comparar.
+
+---
+
+## 8. Reflexión
+
+### 8.1 Reconstrucción del procedimiento
+
+Partiendo de $(t, x, y)$ hay que calcular **dos derivadas en cadena**, en este orden:
+
+**Primera derivada — de posición a velocidad.** Se diferencian $x$ e $y$ por separado respecto de $t$ para obtener $\dot x$ y $\dot y$. Hay que hacerlo por componentes, no sobre la distancia recorrida, porque la dirección se necesita en el paso siguiente.
+
+**Composición — sin derivar.** De $\dot x$ y $\dot y$ salen dos cantidades por operaciones algebraicas: la rapidez $v = \sqrt{\dot x^2 + \dot y^2}$ y la orientación $\theta = \operatorname{atan2}(\dot y, \dot x)$. Aquí no se introduce error de diferenciación, pero sí se propaga el de la etapa anterior.
+
+**Corrección — el unwrap.** Antes de seguir hay que desenvolver $\theta$, porque `atan2` la entrega acotada a $(-\pi,\pi]$ y los saltos de $2\pi$ no son cambios físicos de orientación. La prueba de la sección 6.5 muestra qué pasa si se omite: un pico de 18.67 rad/s donde el valor real es 1.
+
+**Segunda derivada — de orientación a velocidad angular.** $\omega = \dot\theta$, diferenciando el $\theta$ ya desenvuelto.
+
+**Dónde entra el error numérico.** En tres lugares distintos, y conviene no confundirlos:
+
+- En cada diferenciación, por **truncamiento** de la serie de Taylor. Es $O(h^2)$ con diferencias centradas y decrece al refinar $h$.
+- En cada diferenciación, por **amplificación del ruido** de los datos. Escala como $\sigma/h$ y crece al refinar $h$. Como hay dos diferenciaciones, en $\omega$ el efecto es $\sigma/h^2$.
+- En los **extremos del dominio**, donde no existe el punto $i-1$ o el $i+1$. Si se usan fórmulas de dos puntos el orden cae a $O(h)$, y ese error se propaga un punto hacia el interior en cada diferenciación sucesiva.
+
+La cantidad más delicada es $\omega$, porque acumula las tres fuentes al estar al final de la cadena. Todos los resultados anómalos del taller tienen que ver con ella.
+
+### 8.2 Transferencia del aprendizaje
+
+**Qué conservaría.** La estructura del procedimiento, que no depende de los datos: derivar por componentes, componer $v$ y $\theta$, desenvolver, derivar de nuevo. También conservaría la diferencia centrada como punto de partida, y la costumbre de tratar los extremos con fórmulas del mismo orden que el interior.
+
+**Qué modificaría.** Tres cosas.
+
+Primero, **no derivaría los datos crudos**. Con ruido de sensores aplicaría algún suavizado previo. Los resultados de la sección 6.3 muestran que sin eso el cálculo de $\omega$ puede entregar más ruido que señal.
+
+Segundo, **no supondría muestreo uniforme**. Los datos reales llegan con intervalos irregulares, así que usaría la forma $(f_{i+1}-f_{i-1})/(t_{i+1}-t_{i-1})$ — que es la que implementé en C++ precisamente por eso — en lugar de dividir por un $2h$ constante.
+
+Tercero, **mediría el ruido antes de elegir el paso**. Estimaría $\sigma$ con el sensor quieto, y a partir de ahí escogería $h$ cerca del óptimo que equilibra truncamiento y ruido, en lugar de tomar la frecuencia máxima que el hardware permita.
+
+**Qué criterio usaría para escoger el método.** La pregunta decisiva no es cuál esquema tiene mejor orden, sino **cuál es la relación entre el ruido y el paso de muestreo**.
+
+Si los datos son limpios, el truncamiento domina y conviene el esquema de mayor orden con el $h$ más fino disponible.
+
+Si hay ruido apreciable, el orden del esquema deja de ser el factor limitante: da igual usar $O(h^2)$ o $O(h^4)$ si el error está dominado por $\sigma/h$. Ahí la decisión correcta es suavizar primero y aceptar un $h$ mayor.
+
+Un criterio operativo: estimar los dos términos de $E(h) \approx Ch^2 + \sigma/h$ con los datos que se tengan y ver cuál domina. Si es el segundo, el esfuerzo va en el filtrado y no en un esquema de orden superior.
+
+---
+
+## 9. Reproducción
+
+**Generar los datos y ejecutar Octave**
+
+```bash
+cd Octave
+octave --no-gui -q generar_datos.m
+octave --no-gui -q parte1_octave.m
+```
+
+**Python**
+
+```bash
+cd Python
+python3 parte2_python.py
+```
+
+**C/C++ con GSL**
+
+```bash
+cd C_C++/diferenciacion
+cmake -B build && cmake --build build
+cd build && ./diferenciacion
+```
+
+Requiere `octave` (con `gnuplot` y `ghostscript` para exportar PNG), `python3` con NumPy y Matplotlib, y `libgsl-dev`.
+
+### Archivos
+
+| Ruta en el repositorio | Contenido |
+|:---|:---|
+| `Octave/generar_datos.m` | Construye `trayectoria_robot.csv` |
+| `Octave/parte1_octave.m` | Parte 1 y las cuatro gráficas |
+| `Python/parte2_python.py` | Parte 2, estudio de ruido y convergencia |
+| `C_C++/diferenciacion/parte3_cpp.cpp` | Parte 3 y exploración de `gsl_deriv_central` |
+| `C_C++/diferenciacion/CMakeLists.txt` | Configuración de compilación con GSL |
+| `C_C++/diferenciacion/trayectoria_robot.csv` | 51 muestras de $(t, x, y)$ |
+| `Octave/resultados_octave.csv`, `Python/resultados_python.csv` | Resultados numéricos exportados |
+| `Octave/figuras/`, `Python/figuras/` | Gráficas en PNG |
+| `Informe/diferenciacion/` | Este informe |
